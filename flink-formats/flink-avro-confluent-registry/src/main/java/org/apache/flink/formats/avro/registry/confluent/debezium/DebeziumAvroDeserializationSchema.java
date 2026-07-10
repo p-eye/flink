@@ -108,6 +108,9 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
     /** Position of source field in rootRow, -1 if not present. */
     private final int sourceFieldPosition;
 
+    /** Envelope schema for generic deserializer. */
+    private final Schema envelopeSchema;
+
     /** Generic Avro deserializer for extracting envelope with writer schema. */
     private transient RegistryAvroDeserializationSchema<GenericRecord> genericDeserializer;
 
@@ -161,7 +164,7 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
                 schemaString == null
                         ? AvroSchemaConverter.convertToSchema(debeziumAvroRowType, false)
                         : new Parser().parse(schemaString);
-
+        this.envelopeSchema = schema;
         this.avroDeserializer =
                 new AvroRowDataDeserializationSchema(
                         ConfluentRegistryAvroDeserializationSchema.forGeneric(
@@ -169,7 +172,7 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
                         AvroToRowDataConverters.createRowConverter(debeziumAvroRowType, false),
                         producedTypeInfo);
 
-        this.hasMetadata = requestedMetadata.size() > 0;
+        this.hasMetadata = !requestedMetadata.isEmpty();
         this.sourceFieldPosition = debeziumAvroRowType.getFieldNames().indexOf("source");
         this.metadataConverters =
                 requestedMetadata.stream()
@@ -198,6 +201,7 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
         this.hasMetadata = false;
         this.metadataConverters = new MetadataConverter[0];
         this.sourceFieldPosition = -1;
+        this.envelopeSchema = null;
         this.schemaRegistryUrl = null;
         this.registryConfigs = null;
     }
@@ -215,6 +219,7 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
         this.hasMetadata = hasMetadata;
         this.metadataConverters = metadataConverters;
         this.sourceFieldPosition = sourceFieldPosition;
+        this.envelopeSchema = null;
         this.genericDeserializer = genericDeserializer;
         this.schemaRegistryUrl = null;
         this.registryConfigs = null;
@@ -227,7 +232,7 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
         if (hasMetadata && this.genericDeserializer == null) {
             this.genericDeserializer =
                     ConfluentRegistryAvroDeserializationSchema.forGeneric(
-                            null, schemaRegistryUrl, registryConfigs);
+                            this.envelopeSchema, schemaRegistryUrl, registryConfigs);
         }
     }
 
