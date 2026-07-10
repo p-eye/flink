@@ -329,11 +329,6 @@ class DebeziumAvroSerDeSchemaTest {
         ConfluentSchemaRegistryCoder registryCoder =
                 new ConfluentSchemaRegistryCoder(SUBJECT, client);
 
-        RegistryAvroDeserializationSchema<GenericRecord> genericDeserializer =
-                new RegistryAvroDeserializationSchema<>(
-                        GenericRecord.class, DEBEZIUM_SCHEMA_COMPATIBLE_TEST, () -> registryCoder);
-        genericDeserializer.open(new MockInitializationContext());
-
         DebeziumAvroDeserializationSchema.MetadataConverter[] metadataConverters =
                 createMetadataConverters(rowTypeDe, requestedMetadata);
 
@@ -346,7 +341,8 @@ class DebeziumAvroSerDeSchemaTest {
                         true,
                         metadataConverters,
                         sourceFieldPosition,
-                        genericDeserializer);
+                        DEBEZIUM_SCHEMA_COMPATIBLE_TEST,
+                        () -> registryCoder);
         dbzDeserializer.open(new MockInitializationContext());
 
         SimpleCollector collector = new SimpleCollector();

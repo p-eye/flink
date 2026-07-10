@@ -25,6 +25,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.formats.avro.AvroRowDataDeserializationSchema;
 import org.apache.flink.formats.avro.AvroToRowDataConverters;
 import org.apache.flink.formats.avro.RegistryAvroDeserializationSchema;
+import org.apache.flink.formats.avro.SchemaCoder.SchemaCoderProvider;
 import org.apache.flink.formats.avro.registry.confluent.ConfluentRegistryAvroDeserializationSchema;
 import org.apache.flink.formats.avro.registry.confluent.debezium.DebeziumAvroDecodingFormat.ReadableMetadata;
 import org.apache.flink.formats.avro.typeutils.AvroSchemaConverter;
@@ -116,6 +117,9 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
 
     /** Cached source MapData for current message. */
     private transient MapData cachedSourceMap;
+
+    /** Provider for mock schema registry in tests. */
+    private transient SchemaCoderProvider coderProvider;
 
     /**
      * Converts Debezium source GenericRecord to {@code MAP<STRING, STRING>}.
@@ -213,14 +217,16 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
             boolean hasMetadata,
             MetadataConverter[] metadataConverters,
             int sourceFieldPosition,
-            @Nullable RegistryAvroDeserializationSchema<GenericRecord> genericDeserializer) {
+            Schema envelopeSchema,
+            SchemaCoderProvider coderProvider) {
         this.producedTypeInfo = producedTypeInfo;
         this.avroDeserializer = avroDeserializer;
         this.hasMetadata = hasMetadata;
         this.metadataConverters = metadataConverters;
         this.sourceFieldPosition = sourceFieldPosition;
-        this.envelopeSchema = null;
-        this.genericDeserializer = genericDeserializer;
+        this.envelopeSchema = envelopeSchema;
+        this.coderProvider = coderProvider;
+        this.genericDeserializer = null;
         this.schemaRegistryUrl = null;
         this.registryConfigs = null;
     }
@@ -230,9 +236,15 @@ public final class DebeziumAvroDeserializationSchema implements DeserializationS
         avroDeserializer.open(context);
 
         if (hasMetadata && this.genericDeserializer == null) {
-            this.genericDeserializer =
-                    ConfluentRegistryAvroDeserializationSchema.forGeneric(
-                            this.envelopeSchema, schemaRegistryUrl, registryConfigs);
+            if (this.coderProvider != null) {
+                this.genericDeserializer =
+                        new RegistryAvroDeserializationSchema<>(
+                                GenericRecord.class, this.envelopeSchema, this.coderProvider);
+            } else {
+                this.genericDeserializer =
+                        ConfluentRegistryAvroDeserializationSchema.forGeneric(
+                                this.envelopeSchema, schemaRegistryUrl, registryConfigs);
+            }
         }
     }
 
